@@ -1,0 +1,71 @@
+version: '3.0'
+
+volumes:
+    prometheus_data: {}
+    grafana_data: {}
+
+networks:
+  front-tier:
+  back-tier:
+
+services:
+  nginx:
+    image: nginx
+    container_name: nginx
+    hostname: nginx
+    volumes:
+      - ./nginx/openudsmonitor.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/common.conf:/etc/nginx/common.conf:ro
+      - ./nginx/common_location.conf:/etc/nginx/common_location.conf:ro
+      - ./nginx/ssl.conf:/etc/nginx/ssl.conf:ro
+      - ./nginx/ssl/cert.pem:/etc/nginx/ssl/self.cert:ro
+      - ./nginx/ssl/key.pem:/etc/nginx/ssl/self-ssl.key:ro
+      - ./nginx/html/index.html:/usr/share/nginx/html/index.html:ro
+      #- ./nginx/html/:/usr/share/nginx/html/:ro
+    command: /bin/bash -c "nginx -g 'daemon off;'"
+    ports:
+      #- 80:80
+      - 443:443
+    networks:
+      - front-tier
+      - back-tier
+    restart: always
+
+  grafana:
+    image: grafana/grafana
+    user: "472"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=grafana
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s:%(http_port)s/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+    #ports:
+    #  - 3000:3000
+    depends_on:
+      - prometheus
+    networks:
+      - back-tier
+    restart: always
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.size=40TB'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.external-url=http://localhost:9090/prom/'
+    #ports:
+    #  - 9090:9090
+    networks:
+      - back-tier
+    restart: always
