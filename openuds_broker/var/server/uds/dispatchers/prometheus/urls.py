@@ -30,12 +30,12 @@
 '''
 @author: Adolfo Gómez, dkmaster at dkmon dot com
 '''
-from django.conf.urls import url
+from django.urls import re_path
 from .views import prometheus_metrics
 
 urlpatterns = [
      # v2 compat
-     url(r'^prom$', prometheus_metrics, name='dispatcher.prometheus'),
-     # new v3
-     url(r'^uds/prom$', prometheus_metrics, name='dispatcher.prometheus'),
+     re_path(r'^prom$', prometheus_metrics, name='dispatcher.prometheus'),
+     # new v3+
+     re_path(r'^uds/prom$', prometheus_metrics, name='dispatcher.prometheus'),
     ]
