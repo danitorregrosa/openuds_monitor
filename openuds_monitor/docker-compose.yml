@@ -10,7 +10,7 @@ networks:
 
 services:
   nginx:
-    image: nginx
+    image: nginx:latest
     container_name: nginx
     hostname: nginx
     volumes:
@@ -33,7 +33,7 @@ services:
     restart: always
 
   grafana:
-    image: grafana/grafana
+    image: grafana/grafana:latest
     user: "472"
     volumes:
       - grafana_data:/var/lib/grafana
@@ -53,7 +53,7 @@ services:
     restart: always
 
   prometheus:
-    image: prom/prometheus
+    image: prom/prometheus:latest
     volumes:
       - ./prometheus/:/etc/prometheus/
       - prometheus_data:/prometheus
