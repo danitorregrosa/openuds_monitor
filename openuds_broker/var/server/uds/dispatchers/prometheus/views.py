@@ -29,6 +29,10 @@ from uds.models import ServicePool
 
 logger = logging.getLogger(__name__)
 
+uds_v4, uds_v3 = True, False
+if hasattr(ServicePool, "isInMaintenance"):
+    uds_v4, uds_v3 = False, True
+
 # to allow this endpoint only for some ips put here separated by commas
 # e.g:
 # ALLOWED_IPS = '192.168.1.5, 192.168.1.45, 192.168.1.72'
@@ -149,17 +153,17 @@ def prometheus_metrics(request: HttpRequest) -> HttpResponse:
         response += '# HELP openuds_pool_access_allowed Access allowed.\n'
         response += '# TYPE openuds_pool_access_allowed untyped\n'
         response += ('openuds_pool_access_allowed{pool="%s"} %d\n'
-                     % (sp_name, int(sp.isAccessAllowed())))
+                     % (sp_name, int(sp.is_access_allowed() if uds_v4 else sp.isAccessAllowed())))
 
         response += '# HELP openuds_pool_in_maintenance In maintenance.\n'
         response += '# TYPE openuds_pool_in_maintenance untyped\n'
         response += ('openuds_pool_in_maintenance{pool="%s"} %d\n'
-                     % (sp_name, int(sp.isInMaintenance())))
+                     % (sp_name, int(sp.is_in_maintenance() if uds_v4 else sp.isInMaintenance())))
 
         response += '# HELP openuds_pool_restrained Restrained.\n'
         response += '# TYPE openuds_pool_restrained untyped\n'
         response += ('openuds_pool_restrained{pool="%s"} %d\n'
-                     % (sp_name, int(sp.isRestrained())))
+                     % (sp_name, int(sp.is_restrained() if uds_v4 else sp.isRestrained())))
 
         # openuds_pool settings: initial_srvs, cache_l1, cache_l2, max
         response += '# HELP openuds_pool_initial_srvs Initial services.\n'
@@ -185,13 +189,22 @@ def prometheus_metrics(request: HttpRequest) -> HttpResponse:
         # These are serviceProvider metrics, not servicePool ones...
         # move to serviceProvider block?
         try:
-            if sp.service.isOfType('FPService'):
-                serviceProvider = sp.service.getInstance()
-                response += '# HELP openuds_pool_maximal_srvs Max services.\n'
-                response += '# TYPE openuds_pool_maximal_srvs gauge\n'
-                counter = len(serviceProvider.getFPHosts(serviceProvider.getGroupId()))
-                response += ('openuds_pool_maximal_srvs{pool="%s"} %d\n'
-                             % (sp_name, counter))
+            if uds_v4:
+                if sp.service.is_type('FPService'):
+                    serviceProvider = sp.service.get_instance()
+                    response += '# HELP openuds_pool_maximal_srvs Max services.\n'
+                    response += '# TYPE openuds_pool_maximal_srvs gauge\n'
+                    counter = len(serviceProvider.getFPHosts(serviceProvider.getGroupId()))
+                    response += ('openuds_pool_maximal_srvs{pool="%s"} %d\n'
+                                 % (sp_name, counter))
+            else: #uds_v3
+                if sp.service.isOfType('FPService'):
+                    serviceProvider = sp.service.getInstance()
+                    response += '# HELP openuds_pool_maximal_srvs Max services.\n'
+                    response += '# TYPE openuds_pool_maximal_srvs gauge\n'
+                    counter = len(serviceProvider.getFPHosts(serviceProvider.getGroupId()))
+                    response += ('openuds_pool_maximal_srvs{pool="%s"} %d\n'
+                                 % (sp_name, counter))
         except Exception as e:
             date = datetime.datetime.now()
             logger.error('%s - fog project connection error: pool %s - state %s - %s'
@@ -213,20 +226,25 @@ def prometheus_metrics(request: HttpRequest) -> HttpResponse:
 
         # E. user services
         # names prefix: openuds_pool_userservice_
-        erroneousUserServices = sp.erroneousUserServices()
-        cachedUserServices = sp.cachedUserServices()
-        assignedUserServices = sp.assignedUserServices()
+        if uds_v4:
+            cachedUserServices = sp.cached_users_services()
+            assignedUserServices = sp.assigned_user_services()
+        else: #uds_v3
+            erroneousUserServices = sp.erroneousUserServices()
+            cachedUserServices = sp.cachedUserServices()
+            assignedUserServices = sp.assignedUserServices()
         # restrained is a pool concept, not userservice's one
         # restraineds = sp.getRestraineds()
 
         # erroneous
-        response += ('# HELP openuds_pool_userservice_erroneous_count'
-                     ' Pool userservice erroneous counter.\n')
-        response += '# TYPE openuds_pool_userservice_erroneous_count gauge\n'
-        usl = len([us for us in erroneousUserServices
-                  if us.state != 'S'])
-        response += ('openuds_pool_userservice_erroneous_count{pool="%s"} %d\n'
-                     % (sp_name, usl))
+        if uds_v3:
+            response += ('# HELP openuds_pool_userservice_erroneous_count'
+                         ' Pool userservice erroneous counter.\n')
+            response += '# TYPE openuds_pool_userservice_erroneous_count gauge\n'
+            usl = len([us for us in erroneousUserServices
+                      if us.state != 'S'])
+            response += ('openuds_pool_userservice_erroneous_count{pool="%s"} %d\n'
+                         % (sp_name, usl))
         '''
         # restrained
         response += ('# HELP openuds_pool_userservice_restrained_count'
